@@ -8,7 +8,7 @@
 # dejavu-sans-mono-fonts` on fedora:40, `apk add ttf-dejavu` on alpine:3.20 —
 # each verified with `docker run`, exit 0, real GIF produced). No override
 # needed on darwin (Menlo) or windows (Consolas): both are in agg's built-in
-# `--text-font-family` fallback chain and ship on the GitHub-hosted runner
+# default font-family fallback chain and ship on the GitHub-hosted runner
 # images by default. "DejaVu Sans Mono" is *also* in that same default
 # chain, so the Linux legs need no `--font-family` flag either — installing
 # the font is enough for agg's own fallback to find it.
@@ -37,6 +37,11 @@ ocx.write_file(
 [0.5, "o", "smoke test\\r\\n"]
 """,
 )
-r_render = ocx.run(AGG, "--quiet", "demo.cast", "demo.gif")
+# No flags: `--quiet` does not exist before v1.7.0 and clap rejects it with
+# exit 2 ("Found argument '--quiet' which wasn't expected"), which would red
+# EVERY version in the plan — one bad version kills the test job and nothing
+# publishes. Verified on v1.0.0, v1.2.0, v1.4.3, v1.6.0, v1.8.1 and v1.9.0:
+# the two positional arguments alone render at exit 0 on all of them.
+r_render = ocx.run(AGG, "demo.cast", "demo.gif")
 expect.ok(r_render)
 expect.true(ocx.exists("demo.gif"))

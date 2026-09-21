@@ -6,7 +6,7 @@ name: agg
 
 on:
   schedule:
-    - cron: '13 9-23/6 * * *'
+    - cron: '16 4-23/6 * * *'
   workflow_dispatch:
   push:
     branches: [main]
@@ -155,6 +155,55 @@ jobs:
               - name: smoke
                 kind: script
                 script: agg/tests/smoke.star
+          - platform: linux/amd64
+            platform_slug: linux_amd64
+            runner: ubuntu-latest
+            container_id: ubuntu_24_04
+            container_image: "ubuntu:24.04"
+            container_libc: "gnu"
+            docker_platform: "linux/amd64"
+            container_dockerfile: |
+              FROM ubuntu:24.04
+              SHELL ["bash", "-c"]
+              RUN apt-get update
+              RUN apt-get install -y fonts-dejavu-core
+            shell: bash
+            tests:
+              - name: smoke
+                kind: script
+                script: agg/tests/smoke.star
+          - platform: linux/amd64
+            platform_slug: linux_amd64
+            runner: ubuntu-latest
+            container_id: alpine_3_20
+            container_image: "alpine:3.20"
+            container_libc: "musl"
+            docker_platform: "linux/amd64"
+            container_dockerfile: |
+              FROM alpine:3.20
+              SHELL ["sh", "-c"]
+              RUN apk add --no-cache ttf-dejavu
+            shell: sh
+            tests:
+              - name: smoke
+                kind: script
+                script: agg/tests/smoke.star
+          - platform: linux/amd64
+            platform_slug: linux_amd64
+            runner: ubuntu-latest
+            container_id: fedora_40
+            container_image: "fedora:40"
+            container_libc: "gnu"
+            docker_platform: "linux/amd64"
+            container_dockerfile: |
+              FROM fedora:40
+              SHELL ["bash", "-c"]
+              RUN dnf install -y dejavu-sans-mono-fonts
+            shell: bash
+            tests:
+              - name: smoke
+                kind: script
+                script: agg/tests/smoke.star
           - platform: linux/amd64+libc.glibc
             platform_slug: linux_amd64_libc.glibc
             runner: ubuntu-latest
@@ -184,22 +233,6 @@ jobs:
               SHELL ["bash", "-c"]
               RUN dnf install -y dejavu-sans-mono-fonts
             shell: bash
-            tests:
-              - name: smoke
-                kind: script
-                script: agg/tests/smoke.star
-          - platform: linux/amd64+libc.musl
-            platform_slug: linux_amd64_libc.musl
-            runner: ubuntu-latest
-            container_id: alpine_3_20
-            container_image: "alpine:3.20"
-            container_libc: "musl"
-            docker_platform: "linux/amd64"
-            container_dockerfile: |
-              FROM alpine:3.20
-              SHELL ["sh", "-c"]
-              RUN apk add --no-cache ttf-dejavu
-            shell: sh
             tests:
               - name: smoke
                 kind: script

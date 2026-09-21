@@ -14,7 +14,7 @@ high-quality output with accurate frame timing.
 
 ## What's included
 
-- **agg** — the single static binary. No runtime dependencies beyond a
+- **agg** — the single self-contained binary. No runtime dependencies beyond a
   monospace font for rendering. Reads a local asciicast file, stdin, or an
   HTTP(S) URL (e.g. an [asciinema.org](https://asciinema.org) recording
   link) and writes a GIF.

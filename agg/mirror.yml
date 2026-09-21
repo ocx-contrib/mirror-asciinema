@@ -44,10 +44,37 @@ source:
 # both are intentionally NOT mirrored, not a filter miss. No digest sidecars
 # to exclude (anchored `^...$` regexes are still used for safety, matching
 # fleet convention).
+# ─── libc gate (Phase 3.5) — the evidence, not the conclusion ───────────────
+#
+# `os.features` states what an artifact REQUIRES OF THE HOST — it is not a
+# label for how it was built, and the asset NAME never decides the key.
+# Measured on the v1.9.0 assets:
+#
+#   $ file agg-x86_64-unknown-linux-musl
+#   ELF 64-bit LSB pie executable, x86-64, static-pie linked, stripped
+#   $ file agg-x86_64-unknown-linux-gnu
+#   ELF 64-bit LSB pie executable, x86-64, dynamically linked,
+#     interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, stripped
+#   $ file agg-aarch64-unknown-linux-gnu
+#   ELF 64-bit LSB pie executable, ARM aarch64, dynamically linked,
+#     interpreter /lib/ld-linux-aarch64.so.1, for GNU/Linux 3.7.0, stripped
+#
+# The musl build is static-pie — NO PT_INTERP — so it requires nothing of the
+# host and takes the BARE `linux/amd64` key. Tagging it `+libc.musl` would be
+# a false requirement that hid it from every glibc host; the `-musl` filename
+# is not evidence, PT_INTERP is. Same shape and same verdict as the sibling
+# asciinema/mirror.yml. Both gnu builds are dynamically linked against glibc
+# and take `+libc.glibc`.
+#
+# Bare and `+libc.glibc` publish side by side: matching is subset-based and
+# scored by specificity, so a glibc host takes the gnu build ((1,1) outranks
+# (1,0)) and a musl host takes the static one — deterministic, never
+# Ambiguous.
 assets:
   "linux/amd64+libc.glibc":
     - "^agg-x86_64-unknown-linux-gnu$"
-  "linux/amd64+libc.musl":
+  # Static-pie musl build — runs under ANY Linux userland, hence bare.
+  "linux/amd64":
     - "^agg-x86_64-unknown-linux-musl$"
   "linux/arm64+libc.glibc":
     - "^agg-aarch64-unknown-linux-gnu$"
@@ -80,13 +107,17 @@ catalog:
 versions:
   min: "1.0.0"
   new_per_run: 5
-  # Hash-staggered against the rest of the ocx-contrib fleet so sibling
-  # mirrors don't hit the GitHub releases API in the same minute:
-  #   $ python3 -c "import hashlib; s=int(hashlib.sha256(b'asciinema/agg').hexdigest(),16)%1440; print(s, s%60, s//60)"
-  #   553 13 9
-  #   slot: 553  (minute=13, hour-offset=9)  →  cron: 13 9-23/6 * * *
-  # Deliberately not the same slot as asciinema/mirror.yml's 22 5-23/6.
-  poll_interval: "13 9-23/6 * * *"
+  # Hash-staggered, and it MUST come from the fleet's own generator — a
+  # hand-rolled hash is not the same scheme and does not survive `--scan`:
+  #   $ python3 .claude/skills/create-mirror/scripts/poll_stagger.py asciinema/agg
+  #   slot: 256  (minute=16, hour-offset=4)  →  cron: 16 4-23/6 * * *
+  # (sha3_256, full digest % 360 — the period is 6h, so the hour offset is
+  # 0..5. A `%1440` variant yields offsets up to 23, and `9-23/6` then fires
+  # only 3x/day instead of 4x.) Slot 256 collides with gitleaks/gitleaks,
+  # which the scheme accepts — 16 fleet specs already share a slot — and
+  # determinism is what stops the fleet-wide :00 burst that tripped GHCR's
+  # secondary rate limit on 2026-08-04.
+  poll_interval: "16 4-23/6 * * *"
 
 tests:
   # `script:` paths resolve from the repository root, not from this spec's
@@ -125,13 +156,26 @@ platforms:
         shell: bash
         setup:
           - dnf install -y dejavu-sans-mono-fonts
-  "linux/amd64+libc.musl":
+  # The BARE key claims it runs under any Linux userland, so it must prove it:
+  # ubuntu (glibc) + alpine (musl) + fedora (a different glibc vintage). The
+  # alpine leg IS the proof — drop it and the universal claim is merely
+  # asserted.
+  "linux/amd64":
     runner: ubuntu-latest
     containers:
+      - image: "ubuntu:24.04"
+        shell: bash
+        setup:
+          - apt-get update
+          - apt-get install -y fonts-dejavu-core
       - image: "alpine:3.20"
         shell: sh
         setup:
           - apk add --no-cache ttf-dejavu
+      - image: "fedora:40"
+        shell: bash
+        setup:
+          - dnf install -y dejavu-sans-mono-fonts
   "linux/arm64+libc.glibc":
     # arm64 container legs run natively — no qemu — so the runner arch must
     # match the platform or the renderer's guard reds the leg up front.

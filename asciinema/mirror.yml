@@ -89,15 +89,12 @@ assets:
     - "^asciinema-x86_64-unknown-linux-gnu$"
   "linux/arm64+libc.glibc":
     - "^asciinema-aarch64-unknown-linux-gnu$"
-  # ── Pass 2 (Phase 10): uncomment BY HAND, never by sed — a sed replacement
-  # rewrites `\\.` to `\.` inside an asset regex. macOS runner minutes cost
-  # 10x, so linux goes end-to-end green first. `platforms:` below already
-  # declares both darwin entries: a platform with no matching `assets:` key
-  # never enters a version's resolved set, so its legs self-skip for free.
-  # darwin/amd64:
-  #   - "^asciinema-x86_64-apple-darwin$"
-  # darwin/arm64:
-  #   - "^asciinema-aarch64-apple-darwin$"
+  # Pass 2 (Phase 10) — enabled once every linux leg was green end to end.
+  # macOS has a single libc family, so no suffix and no container legs.
+  darwin/amd64:
+    - "^asciinema-x86_64-apple-darwin$"
+  darwin/arm64:
+    - "^asciinema-aarch64-apple-darwin$"
 
 asset_type:
   # Raw binary on every platform — upstream ships no archives. Renamed to

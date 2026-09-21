@@ -6,14 +6,15 @@ repository, one spec directory per package.
 | Package | Spec | Publishes to | Announced as | Upstream SPDX |
 |---|---|---|---|---|
 | [asciinema](https://github.com/asciinema/asciinema) | [`asciinema/mirror.yml`](asciinema/mirror.yml) | `ghcr.io/ocx-contrib/asciinema/asciinema` | `ocx.sh/asciinema/asciinema` | `GPL-3.0-or-later` |
+| [agg](https://github.com/asciinema/agg) | [`agg/mirror.yml`](agg/mirror.yml) | `ghcr.io/ocx-contrib/asciinema/agg` | `ocx.sh/asciinema/agg` | `GPL-3.0-or-later` |
 
 Each upstream release is discovered, re-bundled, smoke-tested per
 `(version, platform)` and only then pushed with cascade tags, after which the
 result is announced into the OCX index.
 
 The namespace is the upstream org because the org *is* the project's own brand
-— and it also publishes `agg`, `asciinema-player` and `asciinema-server`, any
-of which would land here as a new sibling directory with nothing else moving.
+— and it also publishes `asciinema-player` and `asciinema-server`, either of
+which would land here as a new sibling directory with nothing else moving.
 
 ## Layout
 
@@ -73,13 +74,13 @@ distributed through PyPI.
 
 | File | Edit | Regenerate after |
 |------|------|------------------|
-| `mirror-base.yml`, `asciinema/mirror.yml` | hand | yes — see below |
-| `asciinema/{metadata.json,CATALOG.md,logo.*}` | hand | — |
-| `asciinema/tests/smoke.star` | hand | — |
+| `mirror-base.yml`, `asciinema/mirror.yml`, `agg/mirror.yml` | hand | yes — see below |
+| `asciinema\|agg/{metadata.json,CATALOG.md,logo.*}` | hand | — |
+| `asciinema\|agg/tests/smoke.star` | hand | — |
 | `.github/workflows/*.yml` | **generated — never hand-edit** | re-run when a spec changes |
 
 ```bash
-ocx-mirror package pipeline generate ci --spec asciinema/mirror.yml
+ocx-mirror package pipeline generate ci --spec asciinema/mirror.yml --spec agg/mirror.yml
 ```
 
 **Name every spec.** `--spec` *appends* rather than replaces, so a command

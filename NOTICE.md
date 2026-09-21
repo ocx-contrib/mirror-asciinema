@@ -13,6 +13,7 @@ and no endorsement is implied.
 | Package | GHCR path | Upstream SPDX |
 |---|---|---|
 | `asciinema` | `ghcr.io/ocx-contrib/asciinema/asciinema` | `GPL-3.0-or-later` |
+| `agg` | `ghcr.io/ocx-contrib/asciinema/agg` | `GPL-3.0-or-later` |
 
 ---
 
@@ -66,6 +67,66 @@ use. The logo shipped with this package is the official asciinema mark, taken
 from `asciinema/asciinema-server`
 (`priv/static/images/logo-red.svg`), and remains the property of the upstream
 project.
+
+No modifications are made to any upstream artifact in this repository; they are
+republished byte-for-byte inside an OCX bundle.
+
+---
+
+## `agg`
+
+Upstream: <https://github.com/asciinema/agg>
+Published to `ghcr.io/ocx-contrib/asciinema/agg`.
+
+| Component | SPDX | Holder |
+|---|---|---|
+| agg (`agg`) | **GPL-3.0-or-later** | © 2022 Marcin Kulik and contributors |
+
+`gh api repos/asciinema/agg/license` reports the deprecated umbrella id
+`GPL-3.0`; upstream disambiguates it itself — `Cargo.toml` declares
+`license = "GPL-3.0-or-later"` — so the precise expression is
+**GPL-3.0-or-later**, the same disambiguation as `asciinema` above.
+
+Strong copyleft. Redistribution of the compiled binary is granted provided the
+Corresponding Source is conveyed (below). Upstream ships bare binaries with no
+bundled license file, so the full license text is the one at
+<https://github.com/asciinema/agg/blob/main/LICENSE> (GNU GPL version 3,
+29 June 2007) and is reproduced by reference here; it accompanies every
+mirrored version through this notice.
+
+The published binaries statically link third-party Rust crates under
+permissive licenses, enumerated in upstream's `Cargo.toml` / `Cargo.lock`.
+They also embed fallback fonts (JetBrains Mono, Noto Emoji, Noto Sans CJK,
+Symbols Nerd Font) from upstream's `fonts/` directory, each under
+**SIL Open Font License 1.1**, per the `*-OFL.txt` / `SymbolsNerdFont-LICENSE.txt`
+files upstream ships beside them.
+
+### Corresponding Source (GPLv3 §6)
+
+The complete Corresponding Source — the exact source *and* build scripts — for
+every mirrored version is the upstream tagged tree, offered from the same place
+as the binaries under **GPLv3 §6(d)**. This option is available because the
+licence is GPL-3.0-**or-later**, not GPLv2-only:
+
+- Version `X.Y.Z` → tag `vX.Y.Z` →
+  <https://github.com/asciinema/agg/releases/tag/vX.Y.Z>
+- Or clone and check out the exact tag:
+
+  ```bash
+  git clone https://github.com/asciinema/agg
+  git -C agg checkout vX.Y.Z   # X.Y.Z = the mirrored package version
+  ```
+
+Every version this mirror publishes is built by upstream from that tag and
+republished byte-for-byte, so the tag *is* the Corresponding Source for the
+mirrored binary. No additional restrictions are imposed beyond
+GPL-3.0-or-later, and no fee is charged.
+
+The asciinema name is used for catalog identification under nominative fair
+use. `agg` carries no icon of its own upstream, so its package logo reuses the
+same official asciinema mark as the `asciinema` package above — the org IS the
+brand (see `asciinema/mirror.yml`'s namespace-rule comment) — and remains the
+property of the upstream project.
 
 No modifications are made to any upstream artifact in this repository; they are
 republished byte-for-byte inside an OCX bundle.

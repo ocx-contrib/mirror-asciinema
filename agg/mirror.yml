@@ -1,0 +1,175 @@
+extends: ../mirror-base.yml
+
+name: agg
+
+# Logical index package `asciinema/agg` lives at the physical path
+# `ghcr.io/ocx-contrib/asciinema/agg` — slash segments, never hyphen-flattened.
+# The first segment must be this repo's own owner or `GITHUB_TOKEN` cannot
+# create the package. Linkage to this repo comes from the
+# `org.opencontainers.image.source` annotation the pipeline writes.
+target:
+  registry: ghcr.io
+  repository: ocx-contrib/asciinema/agg
+
+source:
+  type: github_release
+  owner: asciinema
+  repo: agg
+  # Every tag from v1.0.0 (floor) to v1.9.0 (newest, checked 2026-09-21) is a
+  # plain `vX.Y.Z` with `prerelease: false` — no rc/beta segment has ever
+  # shipped:
+  #
+  #   $ gh api repos/asciinema/agg/releases --jq '.[] | "\(.tag_name)\tprerelease=\(.prerelease)"'
+  #   v1.9.0  prerelease=false
+  #   v1.8.1  prerelease=false
+  #   …
+  #   v1.0.0  prerelease=false
+  tag_pattern: "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
+
+# ─── Asset scope ────────────────────────────────────────────────────────────
+#
+# Raw binaries, no archive. Every release from v1.0.0 to v1.9.0 ships exactly
+# these 7 assets (checked at both ends of the range plus v1.6.0/v1.8.0, and
+# re-confirmed against the live v1.9.0 release when this spec was ported):
+#
+#   agg-aarch64-apple-darwin
+#   agg-aarch64-unknown-linux-gnu
+#   agg-arm-unknown-linux-gnueabihf   32-bit ARM — no OCX platform key, skip
+#   agg-x86_64-apple-darwin
+#   agg-x86_64-pc-windows-msvc.exe
+#   agg-x86_64-unknown-linux-gnu
+#   agg-x86_64-unknown-linux-musl
+#
+# No windows/arm64 and no linux/arm64 musl asset in any release checked —
+# both are intentionally NOT mirrored, not a filter miss. No digest sidecars
+# to exclude (anchored `^...$` regexes are still used for safety, matching
+# fleet convention).
+assets:
+  "linux/amd64+libc.glibc":
+    - "^agg-x86_64-unknown-linux-gnu$"
+  "linux/amd64+libc.musl":
+    - "^agg-x86_64-unknown-linux-musl$"
+  "linux/arm64+libc.glibc":
+    - "^agg-aarch64-unknown-linux-gnu$"
+  darwin/amd64:
+    - "^agg-x86_64-apple-darwin$"
+  darwin/arm64:
+    - "^agg-aarch64-apple-darwin$"
+  windows/amd64:
+    - "^agg-x86_64-pc-windows-msvc\\.exe$"
+
+asset_type:
+  # One raw binary per platform, versionless name. The Windows asset keeps
+  # its `.exe` suffix from the source filename automatically.
+  type: binary
+  name: agg
+
+metadata:
+  # One shape on every platform — a single static binary, nothing else.
+  default: metadata.json
+
+catalog:
+  # Each package carries its own logo copy (see repo README "Layout") rather
+  # than sharing the root — a shared root logo.* sits in no workflow's
+  # `paths:` filter, so replacing it would publish nothing until an unrelated
+  # edit happened to fire. Same bytes as asciinema/logo.svg: the org IS the
+  # brand (see asciinema/mirror.yml's namespace-rule comment), and agg ships
+  # no icon of its own upstream.
+  logo: logo.svg
+
+versions:
+  min: "1.0.0"
+  new_per_run: 5
+  # Hash-staggered against the rest of the ocx-contrib fleet so sibling
+  # mirrors don't hit the GitHub releases API in the same minute:
+  #   $ python3 -c "import hashlib; s=int(hashlib.sha256(b'asciinema/agg').hexdigest(),16)%1440; print(s, s%60, s//60)"
+  #   553 13 9
+  #   slot: 553  (minute=13, hour-offset=9)  →  cron: 13 9-23/6 * * *
+  # Deliberately not the same slot as asciinema/mirror.yml's 22 5-23/6.
+  poll_interval: "13 9-23/6 * * *"
+
+tests:
+  # `script:` paths resolve from the repository root, not from this spec's
+  # directory — unlike `metadata.default` and `catalog.logo` above.
+  - name: smoke
+    script: agg/tests/smoke.star
+
+platforms:
+  # agg needs a monospace font to run its actual job (GIF rendering) — unlike
+  # a launcher (bazelisk) or a build-system driver (cmake), it fails hard
+  # with "no faces matching font family options" on a font-less host. A bare
+  # `ubuntu:24.04`/`fedora:40`/`alpine:3.20` ships NONE (measured: `fc-list`
+  # is not even installed on stock ubuntu:24.04). `containers[].setup`
+  # provisions exactly one font package per image — the narrow, honest claim
+  # the field exists for. "DejaVu Sans Mono" is already in agg's own default
+  # `--text-font-family` fallback chain, so no CLI flag override is needed;
+  # installing the package is enough for agg's own font resolution to find
+  # it. Verified with `docker run` against the real v1.9.0 binaries before
+  # this spec was written:
+  #
+  #   ubuntu:24.04 + fonts-dejavu-core        → renders, exit 0
+  #   fedora:40    + dejavu-sans-mono-fonts   → renders, exit 0
+  #   alpine:3.20  + ttf-dejavu (musl binary) → renders, exit 0
+  #
+  # darwin (Menlo) and windows (Consolas) need no setup: both are also in the
+  # default fallback chain, and both ship on the GitHub-hosted runner images.
+  "linux/amd64+libc.glibc":
+    runner: ubuntu-latest
+    containers:
+      - image: "ubuntu:24.04"
+        shell: bash
+        setup:
+          - apt-get update
+          - apt-get install -y fonts-dejavu-core
+      - image: "fedora:40"
+        shell: bash
+        setup:
+          - dnf install -y dejavu-sans-mono-fonts
+  "linux/amd64+libc.musl":
+    runner: ubuntu-latest
+    containers:
+      - image: "alpine:3.20"
+        shell: sh
+        setup:
+          - apk add --no-cache ttf-dejavu
+  "linux/arm64+libc.glibc":
+    # arm64 container legs run natively — no qemu — so the runner arch must
+    # match the platform or the renderer's guard reds the leg up front.
+    runner: ubuntu-24.04-arm
+    containers:
+      - image: "ubuntu:24.04"
+        shell: bash
+        setup:
+          - apt-get update
+          - apt-get install -y fonts-dejavu-core
+      - image: "fedora:40"
+        shell: bash
+        setup:
+          - dnf install -y dejavu-sans-mono-fonts
+  darwin/amd64:
+    # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 — GitHub's
+    # native macos-13 Intel pool is exhausted and deadlocks the push job (same
+    # rationale as asciinema/mirror.yml darwin/amd64).
+    runner: macos-14
+  darwin/arm64:
+    runner: macos-14
+    shell: bash
+  windows/amd64:
+    runner: windows-latest
+    shell: pwsh
+  # No `containers:` on darwin or windows — those runners have no Linux
+  # container engine, and the key is rejected at spec load.
+
+annotations:
+  # $ gh api repos/asciinema/agg --jq '.license.spdx_id'  → GPL-3.0
+  # `Cargo.toml` pins the precise expression `license = "GPL-3.0-or-later"`,
+  # same disambiguation as asciinema/mirror.yml (GitHub's API reports only the
+  # deprecated umbrella id) — recorded here and in NOTICE.md.
+  org.opencontainers.image.licenses: "GPL-3.0-or-later"
+
+announce:
+  # Spelled out, not derived from target.repository — the logical name and
+  # the physical path are related by convention only. Needs
+  # OCX_ANNOUNCE_TOKEN (ocx-contrib org secret).
+  package: asciinema/agg
+  fork: ocx-contrib/index

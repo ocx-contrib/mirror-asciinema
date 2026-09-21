@@ -1,0 +1,187 @@
+extends: ../mirror-base.yml
+
+name: asciinema
+
+# Logical index package `asciinema/asciinema` at the physical path
+# `ghcr.io/ocx-contrib/asciinema/asciinema` — slash segments, never
+# hyphen-flattened. The first segment must be this repo's own GitHub owner:
+# GITHUB_TOKEN only authorises packages owned by the repo the workflow runs in.
+#
+# Namespace rule 2 (the org IS the project's own brand): upstream's owner
+# `asciinema` is the project itself, not a personal handle and not a vendor
+# umbrella. The org also publishes `agg`, `asciinema-player` and
+# `asciinema-server`, so the repo is named for the namespace and a second
+# package would be a new sibling directory here.
+target:
+  registry: ghcr.io
+  repository: ocx-contrib/asciinema/asciinema
+
+source:
+  type: github_release
+  owner: asciinema
+  repo: asciinema
+  # Stable tags are bare `vX.Y.Z`. The release-candidate tags (`v3.0.0-rc.5`
+  # and below) do NOT match this anchored pattern — which matters, because
+  # upstream marked `v3.0.0-rc.5` as a NON-prerelease, so `skip_prereleases`
+  # alone would have let it through.
+  tag_pattern: "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
+
+# ─── libc gate (Phase 3.5) — the evidence, not the conclusion ───────────────
+#
+# `os.features` states what an artifact REQUIRES OF THE HOST — it is not a
+# label for how it was built. Measured on the v3.2.1 assets:
+#
+#   $ file asciinema-x86_64-unknown-linux-musl
+#   ELF 64-bit LSB pie executable, x86-64, static-pie linked, stripped
+#   $ file asciinema-x86_64-unknown-linux-gnu
+#   ELF 64-bit LSB pie executable, x86-64, dynamically linked,
+#     interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, stripped
+#   $ file asciinema-aarch64-unknown-linux-gnu
+#   ELF 64-bit LSB pie executable, ARM aarch64, dynamically linked,
+#     interpreter /lib/ld-linux-aarch64.so.1, for GNU/Linux 3.7.0, stripped
+#
+#   $ readelf -d asciinema-x86_64-unknown-linux-gnu | grep NEEDED
+#     libgcc_s.so.1  libm.so.6  libc.so.6
+#   $ readelf -d asciinema-aarch64-unknown-linux-gnu | grep NEEDED
+#     libgcc_s.so.1  libutil.so.1  libpthread.so.0  libm.so.6  libdl.so.2
+#     libc.so.6  ld-linux-aarch64.so.1
+#
+# So: the musl build is static-pie — no PT_INTERP — and therefore requires
+# NOTHING of the host, which is a BARE `linux/amd64` key. Tagging it
+# `+libc.musl` would be a false requirement that hid it from every glibc host.
+# Both gnu builds are dynamically linked against glibc and get `+libc.glibc`.
+#
+# Both amd64 keys are published side by side. Matching is subset-based and
+# scored by specificity, so a glibc host takes `+libc.glibc` (1,1 outranks
+# 1,0) and a musl host takes the bare static build — deterministic, never
+# Ambiguous. The second key earns itself here because asciinema is a NETWORK
+# tool (`upload`, `stream`, `auth` talk to an asciinema server): a static musl
+# build uses musl's own resolver, which ignores nsswitch.conf and loads no NSS
+# modules, so a glibc host is better served by the gnu build it would resolve
+# anyway.
+#
+# arm64 has no musl counterpart to split against — upstream ships only
+# `aarch64-unknown-linux-gnu` — so that arch publishes the glibc key alone.
+#
+# glibc floor, measured per arch (they come off different toolchains and are
+# NOT symmetric):
+#   $ readelf -V asciinema-x86_64-unknown-linux-gnu  | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+#   GLIBC_2.34
+#   $ readelf -V asciinema-aarch64-unknown-linux-gnu | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+#   GLIBC_2.18
+# Both container images clear 2.34 (ubuntu 24.04 and fedora 40 ship 2.39).
+#
+# ─── Scope — resolution verified BOTH ways ──────────────────────────────────
+#
+# Every in-range release (v3.0.0, v3.0.1, v3.1.0, v3.2.0, v3.2.1) ships
+# EXACTLY the same five assets, and each of the five anchored patterns below
+# matches exactly one of them. A pattern matching zero is SILENTLY SKIPPED,
+# not an error — it would yield a green run with a missing platform.
+#
+# Upstream publishes no Windows build at all (asciinema records a pty; there is
+# no Windows target in its release matrix), and no linux/arm64 musl build. Both
+# omissions are upstream's, re-checked against the v3.2.1 asset list above.
+assets:
+  # Static-pie musl build — runs under ANY Linux userland, hence bare.
+  "linux/amd64":
+    - "^asciinema-x86_64-unknown-linux-musl$"
+  "linux/amd64+libc.glibc":
+    - "^asciinema-x86_64-unknown-linux-gnu$"
+  "linux/arm64+libc.glibc":
+    - "^asciinema-aarch64-unknown-linux-gnu$"
+  # ── Pass 2 (Phase 10): uncomment BY HAND, never by sed — a sed replacement
+  # rewrites `\\.` to `\.` inside an asset regex. macOS runner minutes cost
+  # 10x, so linux goes end-to-end green first. `platforms:` below already
+  # declares both darwin entries: a platform with no matching `assets:` key
+  # never enters a version's resolved set, so its legs self-skip for free.
+  # darwin/amd64:
+  #   - "^asciinema-x86_64-apple-darwin$"
+  # darwin/arm64:
+  #   - "^asciinema-aarch64-apple-darwin$"
+
+asset_type:
+  # Raw binary on every platform — upstream ships no archives. Renamed to
+  # `asciinema`, so one metadata file serves all five platforms.
+  type: binary
+  name: asciinema
+
+metadata:
+  default: metadata.json
+
+catalog:
+  logo: logo.svg
+
+# ─── Platform matrix ────────────────────────────────────────────────────────
+#
+# Kept out of ../mirror-base.yml on purpose: this block is downstream of the
+# libc measurement above, and `extends:` is a SHALLOW merge — a second package
+# with a different measurement would have to restate it in full or silently
+# lose every `containers:` entry.
+#
+# The container legs are what turn the `os.features` claims into evidence:
+#   - bare `linux/amd64` claims universality → ubuntu (glibc) + alpine (musl)
+#     + fedora (different glibc vintage). The ALPINE leg is the proof; drop it
+#     and the universal claim is merely asserted.
+#   - `+libc.glibc` keys → ubuntu + fedora only. Alpine is rejected at spec
+#     load for a musl key tested in a glibc image and would verify nothing for
+#     a glibc key.
+platforms:
+  "linux/amd64":
+    runner: ubuntu-latest
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  "linux/amd64+libc.glibc":
+    runner: ubuntu-latest
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "fedora:40",    shell: bash }
+  "linux/arm64+libc.glibc":
+    # arm64 container legs run natively — no qemu — so the runner arch must
+    # match the platform or the renderer reds the leg up front.
+    runner: ubuntu-24.04-arm
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "fedora:40",    shell: bash }
+  darwin/amd64:
+    # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 — GitHub's
+    # native macos-13 Intel pool is exhausted and deadlocks the push job.
+    runner: macos-14
+  darwin/arm64:
+    runner: macos-14
+    shell: bash
+  # No `containers:` on darwin — those runners have no Linux container engine,
+  # and the key is rejected at spec load.
+
+versions:
+  # 3.0.0 is the first stable release of the Rust rewrite and the first to ship
+  # binaries at all; 2.x was a Python package distributed through PyPI. Every
+  # release from 3.0.0 up resolves all five platforms uniformly.
+  min: "3.0.0"
+  new_per_run: 5
+  # Hash-staggered, NEVER a hand-picked minute:
+  #   $ python3 .claude/skills/create-mirror/scripts/poll_stagger.py asciinema/asciinema
+  #   slot: 322  (minute=22, hour-offset=5)  →  cron: 22 5-23/6 * * *
+  # Fleet-synchronized crons burst-pushed to GHCR together and tripped its
+  # secondary rate limit on 2026-08-04.
+  poll_interval: "22 5-23/6 * * *"
+
+tests:
+  # `script:` resolves from the REPOSITORY ROOT — unlike `metadata.default` and
+  # `catalog.logo` above, which resolve against this spec's own directory.
+  - name: smoke
+    script: asciinema/tests/smoke.star
+
+annotations:
+  # From the Phase 1.5 license gate. `gh api repos/asciinema/asciinema/license`
+  # reports the deprecated umbrella id `GPL-3.0`; upstream's Cargo.toml pins
+  # the precise expression `GPL-3.0-or-later`, which is what is recorded here
+  # and in NOTICE.md.
+  org.opencontainers.image.licenses: "GPL-3.0-or-later"
+
+announce:
+  # Spelled out, not derived from target.repository — the logical name and the
+  # physical path are related by convention only.
+  package: asciinema/asciinema
+  fork: ocx-contrib/index
